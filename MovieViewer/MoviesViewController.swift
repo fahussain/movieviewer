@@ -17,12 +17,22 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
     
     
     var movies: [NSDictionary]?
-    var refreshControl: UIRefreshControl!
     var endpoint: String!
+    lazy var refreshControl: UIRefreshControl = {
+        let refreshControl = UIRefreshControl()
+        refreshControl.addTarget(self, action: #selector(MoviesViewController.handleRefresh(_:)), for: UIControlEvents.valueChanged)
+        
+        return refreshControl
+    }()
     override func viewDidLoad() {
         super.viewDidLoad()
+        
+        tableView.insertSubview(refreshControl, at: 0)
         tableView.dataSource = self
         tableView.delegate = self
+        self.loadData(notRefresh: true)
+    }
+    func loadData(notRefresh: Bool) {
         networkErrorLabel.isHidden = true
         // Do any additional setup after loading the view.
         
@@ -40,18 +50,21 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
             delegate:nil,
             delegateQueue:OperationQueue.main
         )
-        MBProgressHUD.showAdded(to: self.view, animated: true)
+        if notRefresh {MBProgressHUD.showAdded(to: self.view, animated: true)}
+        
         let task : URLSessionDataTask = session.dataTask(with: request,completionHandler: { (dataOrNil, responseOrNil, errorOrNil) in
             if let requestError = errorOrNil {
-                MBProgressHUD.hide(for: self.view, animated: true)
+                if notRefresh {MBProgressHUD.hide(for: self.view, animated: true)}
                 self.networkErrorLabel.isHidden = false;
+                self.refreshControl.endRefreshing()
             }else {
                 if let data = dataOrNil {
                     if let responseDictionary = try! JSONSerialization.jsonObject(with: data, options:[]) as? NSDictionary {
                         
                         self.movies = responseDictionary["results"] as! [NSDictionary]
                         self.tableView.reloadData()
-                        MBProgressHUD.hide(for: self.view, animated: true)
+                        self.refreshControl.endRefreshing()
+                        if notRefresh {MBProgressHUD.hide(for: self.view, animated: true)}
                     }
                 }
             }
@@ -60,7 +73,9 @@ class MoviesViewController: UIViewController, UITableViewDataSource, UITableView
         });
         task.resume()
     }
-
+    func handleRefresh(_ refreshControl: UIRefreshControl){
+        loadData(notRefresh: false)
+    }
     override func didReceiveMemoryWarning() {
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
